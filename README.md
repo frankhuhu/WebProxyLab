@@ -1,4 +1,9 @@
-WebProxyLab
-===========
+###############################################################
+# Course: CS 202 - Advanced Operating System Fall 2012
+# Lab 1:  A Multi-threaded Web Proxy with Caching
+# Author: Yongjian Hu
+# Email:  yhu009@ucr.edu
+###############################################################
 
-This is the first project of "CS 202 Advanced Operating System" at UC Riverside. It aims to write a multi-threaded web proxy with caching.
+
+
