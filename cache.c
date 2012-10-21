@@ -133,6 +133,7 @@ static int hash_insert(int hashcode, char *url, char *obj) {
             if (!p)
                 return -1;
             hash_table[i].valid = 1;
+            hash_table[i].p_list_node = p;
             return i;
         }
     }
@@ -157,8 +158,10 @@ char *cache_load(char *url) {
 
     hashcode = ELFHash(url) % MAXHASH;
 
-    if ((i = hash_lookup(hashcode, url)) < 0)
+    if ((i = hash_lookup(hashcode, url)) < 0) {
+        pthread_mutex_unlock(&cache_mutex);
         return NULL;
+    }
 
     // find this item, update its pos.
     adjust_list_node(hash_table[i].p_list_node);
