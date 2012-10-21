@@ -4,7 +4,7 @@ CC = gcc
 CFLAGS = -O0 -g -DDEBUG
 LDFLAGS = -lpthread
 
-OBJS = proxy.o util.o
+OBJS = proxy.o util.o cache.o
 
 all: proxy
 
@@ -15,6 +15,9 @@ proxy.o: proxy.c
 
 util.o: util.c
 	$(CC) $(CFLAGS) -c util.c
+
+cache.o: cache.c
+	$(CC) $(CFLAGS) -c cache.c
 
 clean:
 	rm -f *~ *.o proxy

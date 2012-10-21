@@ -12,11 +12,10 @@
 
 #define NTHREADS  20
 #define SBUFSIZE  80
-#define MAXOBJECTSIZE (1024 * 120)
 
 typedef struct {
     char method[128];
-    char uri[MAXLINE];
+    char url[MAXLINE];
     char version[128];
     char host[MAXLINE];
     int port;
@@ -111,7 +110,7 @@ void read_http_request(int clientfd, rio_t *rio, request_t *req) {
 
     rio_readlineb(rio, buf, MAXLINE);
     strcat(req->raw_str, buf);
-    sscanf(buf, "%s %s %s", req->method, req->uri, req->version);
+    sscanf(buf, "%s %s %s", req->method, req->url, req->version);
     if (strcasecmp(req->method, "GET")) {
         echo_error("Proxy failed to handle non GET HTTP methods.\n");
         return;
@@ -133,8 +132,8 @@ void read_http_request(int clientfd, rio_t *rio, request_t *req) {
     strcat(req->raw_str, "\r\n");
 
 #ifdef DEBUG
-    printf("method = %s, uri = %s, version = %s, host = %s\r\n\r\n",
-            req->method, req->uri, req->version, req->host);
+    printf("method = %s, url = %s, version = %s, host = %s\r\n\r\n",
+            req->method, req->url, req->version, req->host);
 #endif
 
     free(buf);
@@ -147,6 +146,7 @@ int work(int clientfd) {
     rio_t cli_rio;
     int nread, resp_len;
     char *response_buf;
+    char *cache_data;
 
     request_t *request;
     response_t *response;
@@ -157,6 +157,21 @@ int work(int clientfd) {
 
     rio_readinitb(&cli_rio, clientfd);
     read_http_request(clientfd, &cli_rio, request);
+
+#ifdef DEBUG
+    printf("Request url = %s\n", request->url);
+#endif
+
+    if ((cache_data = cache_load(request->url)) != NULL) {
+#ifdef DEBUG
+        printf("Cache hit!\n");
+#endif
+        if (rio_writen(clientfd, cache_data, sizeof(char) * MAXOBJECTSIZE) < 0) {
+            echo_error("Error in sending cache data to client.");
+            return -1;
+        }
+        return 0;
+    }
 
     if ((serverfd = create_clientfd(request->host, request->port)) < 0) {
         echo_error("Error in create server socket.");
@@ -170,9 +185,12 @@ int work(int clientfd) {
     }
 
     nread = resp_len = 0;
-//    memset(response_buf, 0, sizeof(char) * MAXOBJECTSIZE);
+    cache_data = (char *) malloc(sizeof(char) * MAXOBJECTSIZE);
+    memset(cache_data, 0, sizeof(char) * MAXOBJECTSIZE);
     while ((nread = rio_readnb(&serv_rio, response_buf, sizeof(char) * MAXOBJECTSIZE)) > 0) {
         resp_len += nread;
+        if (resp_len <= MAXOBJECTSIZE)
+            memcpy(cache_data, response_buf, sizeof(char) * MAXOBJECTSIZE);
 #ifdef DEBUG
         printf("%d bytes read from server.\n", nread);
 #endif
@@ -183,13 +201,16 @@ int work(int clientfd) {
 #ifdef DEBUG
         printf("%d bytes write to client.\n", nread);
 #endif
-//        memset(response_buf, 0, sizeof(char) * MAXOBJECTSIZE);
+        memset(response_buf, 0, sizeof(char) * MAXOBJECTSIZE);
     }
+    if (resp_len <= MAXOBJECTSIZE)
+        cache_insert(request->url, cache_data);
 
 work_success:
     free(request);
     free(response);
     free(response_buf);
+    free(cache_data);
     close(serverfd);
 
     return 0;
@@ -229,6 +250,7 @@ int main(int argc, char **argv)
 
     port = atoi(argv[1]);
     sbuf_init(&sbuf, SBUFSIZE);
+    cache_init();
     clientlen = sizeof(clientaddr);
     listenfd = create_listenfd(port);
 

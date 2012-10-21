@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-static void error_exit(char *s)
+void error_exit(char *s)
 {
     fprintf(stderr, "%s\n", s);
     exit(0);
