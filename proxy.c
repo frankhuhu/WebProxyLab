@@ -178,7 +178,6 @@ int work(int clientfd) {
         goto work_failed;
     }
 
-    rio_readinitb(&serv_rio, serverfd);
     if (rio_writen(serverfd, request->raw_str, strlen(request->raw_str)) < 0) {
         echo_error("Error in sending request.");
         goto work_failed;
@@ -187,14 +186,14 @@ int work(int clientfd) {
     nread = resp_len = 0;
     cache_data = (char *) malloc(sizeof(char) * MAXOBJECTSIZE);
     memset(cache_data, 0, sizeof(char) * MAXOBJECTSIZE);
-    while ((nread = rio_readnb(&serv_rio, response_buf, sizeof(char) * MAXOBJECTSIZE)) > 0) {
+    while ((nread = recv(serverfd, response_buf, sizeof(char) * MAXOBJECTSIZE, 0)) > 0) {
         resp_len += nread;
         if (resp_len <= MAXOBJECTSIZE)
             memcpy(cache_data, response_buf, sizeof(char) * MAXOBJECTSIZE);
 #ifdef DEBUG
         printf("%d bytes read from server.\n", nread);
 #endif
-        if (rio_writen(clientfd, response_buf, nread) < 0) {
+        if (send(clientfd, response_buf, nread, 0) < 0) {
             echo_error("Error in sending response to client.");
             goto work_failed;
         }

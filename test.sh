@@ -24,10 +24,14 @@ run_all() {
 run_one() {
     echo "begin thread $1"
 
-    lineno="$1p"
-    url=`sed -n -e $lineno url.txt`
+    tid=$1
+    totalline=`wc -l < url.txt`
+    lineno=$RANDOM
+    let "lineno %= $totalline"
+    let "lineno += 1"
+    url=`sed -n -e $lineno'p' url.txt`
 
-    curl --proxy $PROXY $url > "result/$1.proxy"
+    curl --proxy $PROXY $url > "result/$lineno"_"$tid.proxy"
 
     echo "end thread $1"
 }
@@ -38,7 +42,7 @@ run_all
 
 # multi-thread
 nthrds=`wc -l < url.txt`
-for tid in {1..13} ; do
+for tid in {1..50} ; do
     echo "spawn $tid"
     run_one $tid &
 done
