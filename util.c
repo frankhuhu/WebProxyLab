@@ -1,7 +1,15 @@
 // Some util functions from csapp.c
 
 #include "util.h"
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+static void error_exit(char *s)
+{
+    fprintf(stderr, "%s\n", s);
+    exit(0);
+}
 
 /*********************************************************************
  * The Rio package - robust I/O functions
@@ -158,3 +166,74 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     return n;
 }
 /* $end rio_readlineb */
+
+
+
+
+/*******************************
+ * Wrappers for Posix semaphores
+ *******************************/
+
+void P(sem_t *sem) 
+{
+    if (sem_wait(sem) < 0) 
+        error_exit("P error.");
+}
+
+void V(sem_t *sem) 
+{
+    if (sem_post(sem) < 0)
+        error_exit("V error.");
+}
+
+
+
+/*******************************
+ * Wrappers for Shared Buffer
+ *******************************/
+
+void sbuf_init(sbuf_t *sp, int n)
+{
+    sp->buf = (int *)calloc(n, sizeof(int));
+    if (!sp->buf)
+        error_exit("Error in sbuf_init while calloc memory.");
+    sp->n = n;
+    sp->front = sp->rear = 0;
+
+    if ((sp->mutex = sem_open("sbuf_mutex", O_CREAT, S_IRUSR | S_IWUSR, 1)) == SEM_FAILED)
+        error_exit("Sem_mutex error");
+    if ((sp->slots = sem_open("sbuf_slots", O_CREAT, S_IRUSR | S_IWUSR, n)) == SEM_FAILED)
+        error_exit("Sem_slots error");
+    if ((sp->items = sem_open("sbuf_items", O_CREAT, S_IRUSR | S_IWUSR, 0)) == SEM_FAILED)
+        error_exit("Sem_items error");
+}
+
+void sbuf_free(sbuf_t *sp)
+{
+    free(sp->buf);
+    sem_close(sp->mutex);
+    sem_close(sp->slots);
+    sem_close(sp->items);
+}
+
+void sbuf_insert(sbuf_t *sp, int item)
+{
+    P(sp->slots);
+    P(sp->mutex);
+    sp->buf[(++sp->rear)%(sp->n)] = item;
+    V(sp->mutex);
+    V(sp->items);
+}
+
+int sbuf_remove(sbuf_t *sp)
+{
+    int item;
+    P(sp->items);
+    P(sp->mutex);
+    item = sp->buf[(++sp->front)%(sp->n)];
+    V(sp->mutex);
+    V(sp->slots);
+
+    return item;
+}
+
