@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -160,7 +160,7 @@ int work(int clientfd) {
 #endif
 
     if ((cache_data = cache_load(request->url, &cache_data_size)) != NULL) {
-        printf("Cache hit! size = %d\n", cache_data_size);
+        printf("Cache hit! url = %s, cache_size = %d\n", request->url, cache_data_size);
         if (rio_writen(clientfd, cache_data, cache_data_size) < 0) {
             echo_error("Error in sending cache data to client.");
             return -1;
@@ -197,7 +197,7 @@ int work(int clientfd) {
     if (resp_len <= MAXOBJECTSIZE)
         cache_insert(request->url, cache_data, resp_len);
 
-    printf("Cache not hit! size = %d\n", resp_len);
+    printf("Cache not hit! url = %s, cache_size = %d\n", request->url, resp_len);
 
     free(request);
     free(response);

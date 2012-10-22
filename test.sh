@@ -43,7 +43,7 @@ nthrds=`wc -l < url.txt`
 for tid in {1..50} ; do
     echo "spawn $tid"
     run_one $tid &
-    sleep 0.2
+    sleep 0.5
 done
 
 # run curl without proxy
