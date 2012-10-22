@@ -12,7 +12,8 @@ struct hash_node;
 
 typedef struct list_node {
     char *url;
-    char obj[MAXOBJECTSIZE];
+    char obj[MAXOBJECTSIZE + 5];
+    int obj_size;
     struct hash_node *hashnode;
     struct list_node *prev;
     struct list_node *next;
@@ -50,7 +51,7 @@ unsigned int ELFHash(char *str)
 
 
 
-static list_node_t* add_list_node(char *url, char *obj, hash_node_t *hnode) {
+static list_node_t* add_list_node(char *url, char *obj, int obj_size, hash_node_t *hnode) {
     list_node_t *plnode;
 
     plnode = (list_node_t *) malloc(sizeof(list_node_t));
@@ -63,6 +64,7 @@ static list_node_t* add_list_node(char *url, char *obj, hash_node_t *hnode) {
 
     strcpy(plnode->url, url);
     memcpy(plnode->obj, obj, MAXOBJECTSIZE);
+    plnode->obj_size = obj_size;
     plnode->hashnode = hnode;
 
     plnode->prev = NULL;
@@ -124,12 +126,12 @@ static int hash_lookup(int hashcode, char *url) {
     return -1;
 }
 
-static int hash_insert(int hashcode, char *url, char *obj) {
+static int hash_insert(int hashcode, char *url, char *obj, int obj_size) {
     int i;
     assert(0 <= hashcode && hashcode < MAXHASH);
     for (i = hashcode; (i+1)%MAXHASH != hashcode; i = (i+1)%MAXHASH) {
         if (!hash_table[i].valid) {
-            list_node_t *p = add_list_node(url, obj, &hash_table[i]);
+            list_node_t *p = add_list_node(url, obj, obj_size, &hash_table[i]);
             if (!p)
                 return -1;
             hash_table[i].valid = 1;
@@ -150,7 +152,7 @@ void cache_init() {
     cache_items = 0;
 }
 
-char *cache_load(char *url) {
+char *cache_load(char *url, int *obj_size) {
     int i, hashcode;
     char *obj = NULL;
 
@@ -166,13 +168,14 @@ char *cache_load(char *url) {
     // find this item, update its pos.
     adjust_list_node(hash_table[i].p_list_node);
     obj = hash_table[i].p_list_node->obj;
+    *obj_size = hash_table[i].p_list_node->obj_size;
 
     pthread_mutex_unlock(&cache_mutex);
 
     return obj;
 }
 
-int cache_insert(char *url, char *obj) {
+int cache_insert(char *url, char *obj, int obj_size) {
     int hashcode, ret;
 
     pthread_mutex_lock(&cache_mutex);
@@ -181,7 +184,7 @@ int cache_insert(char *url, char *obj) {
         remove_list_node(list_node_tail);
 
     hashcode = ELFHash(url) % MAXHASH;
-    ret = hash_insert(hashcode, url, obj);
+    ret = hash_insert(hashcode, url, obj, obj_size);
 
     pthread_mutex_unlock(&cache_mutex);
 

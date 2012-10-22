@@ -15,15 +15,15 @@
 
 typedef struct {
     char method[128];
-    char url[MAXLINE];
+    char url[MAXLINE + 5];
     char version[128];
-    char host[MAXLINE];
+    char host[MAXLINE + 5];
     int port;
-    char raw_str[5 * MAXLINE];
+    char raw_str[5 * MAXLINE + 5];
 } request_t;
 
 typedef struct {
-    char header[MAXLINE];
+    char header[MAXLINE + 5];
     char *content;
     int  content_size;
 } response_t;
@@ -105,7 +105,7 @@ void read_http_request(int clientfd, rio_t *rio, request_t *req) {
     int n;
     char *buf;
 
-    buf = (char *)malloc(sizeof(char) * MAXLINE);
+    buf = (char *)malloc(sizeof(char) * MAXLINE + 5);
     strcpy(req->raw_str, "\0");
 
     rio_readlineb(rio, buf, MAXLINE);
@@ -125,9 +125,6 @@ void read_http_request(int clientfd, rio_t *rio, request_t *req) {
             sscanf(buf, "Host: %s", req->host);
         if (!strcmp(buf, "\r\n"))
             break;
-#ifdef DEBUG
-        printf("%s", buf);
-#endif
     }
     strcat(req->raw_str, "\r\n");
 
@@ -142,18 +139,18 @@ void read_http_request(int clientfd, rio_t *rio, request_t *req) {
 
 int work(int clientfd) {
     int serverfd;
-    rio_t serv_rio;
     rio_t cli_rio;
     int nread, resp_len;
     char *response_buf;
     char *cache_data;
+    int cache_data_size;
 
     request_t *request;
     response_t *response;
 
     request = (request_t *)malloc(sizeof(request_t));
     response = (response_t *)malloc(sizeof(response_t));
-    response_buf = (char *)malloc(sizeof(char) * MAXOBJECTSIZE);
+    response_buf = (char *)malloc(sizeof(char) * MAXOBJECTSIZE + 5);
 
     rio_readinitb(&cli_rio, clientfd);
     read_http_request(clientfd, &cli_rio, request);
@@ -162,11 +159,9 @@ int work(int clientfd) {
     printf("Request url = %s\n", request->url);
 #endif
 
-    if ((cache_data = cache_load(request->url)) != NULL) {
-#ifdef DEBUG
-        printf("Cache hit!\n");
-#endif
-        if (rio_writen(clientfd, cache_data, sizeof(char) * MAXOBJECTSIZE) < 0) {
+    if ((cache_data = cache_load(request->url, &cache_data_size)) != NULL) {
+        printf("Cache hit! size = %d\n", cache_data_size);
+        if (rio_writen(clientfd, cache_data, cache_data_size) < 0) {
             echo_error("Error in sending cache data to client.");
             return -1;
         }
@@ -184,28 +179,26 @@ int work(int clientfd) {
     }
 
     nread = resp_len = 0;
-    cache_data = (char *) malloc(sizeof(char) * MAXOBJECTSIZE);
+    cache_data = (char *) malloc(sizeof(char) * MAXOBJECTSIZE + 5);
     memset(cache_data, 0, sizeof(char) * MAXOBJECTSIZE);
     while ((nread = recv(serverfd, response_buf, sizeof(char) * MAXOBJECTSIZE, 0)) > 0) {
         resp_len += nread;
-        if (resp_len <= MAXOBJECTSIZE)
-            memcpy(cache_data, response_buf, sizeof(char) * MAXOBJECTSIZE);
-#ifdef DEBUG
-        printf("%d bytes read from server.\n", nread);
-#endif
+        if (resp_len <= MAXOBJECTSIZE) {
+            response_buf[nread] = '\0';
+            strcat(cache_data, response_buf);
+            //memcpy(cache_data, response_buf, sizeof(char) * MAXOBJECTSIZE);
+        }
         if (send(clientfd, response_buf, nread, 0) < 0) {
             echo_error("Error in sending response to client.");
             goto work_failed;
         }
-#ifdef DEBUG
-        printf("%d bytes write to client.\n", nread);
-#endif
         memset(response_buf, 0, sizeof(char) * MAXOBJECTSIZE);
     }
     if (resp_len <= MAXOBJECTSIZE)
-        cache_insert(request->url, cache_data);
+        cache_insert(request->url, cache_data, resp_len);
 
-work_success:
+    printf("Cache not hit! size = %d\n", resp_len);
+
     free(request);
     free(response);
     free(response_buf);

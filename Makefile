@@ -1,7 +1,6 @@
 
 CC = gcc
-#CFLAGS = -Wall -O0 -g 
-CFLAGS = -O0 -g -DDEBUG
+CFLAGS = -Wall -O0 -g 
 LDFLAGS = -lpthread
 
 OBJS = proxy.o util.o cache.o

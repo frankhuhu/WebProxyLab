@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROXY=127.0.0.1:85621
+PROXY=127.0.0.1:62185
 
 
 if [ ! -d "result" ]; then
@@ -16,7 +16,7 @@ run_all() {
         index=$(($index+1));
         echo "$index : $line"
 
-        curl $line > "result/$index.noproxy"
+        curl $line > "result/$index"_"0.noproxy"
 #        curl --proxy $PROXY $line > "result/$index.proxy"
     done < url.txt
 }
@@ -37,12 +37,14 @@ run_one() {
 }
 
 # main
-# first run curl without proxy
-run_all
 
 # multi-thread
 nthrds=`wc -l < url.txt`
 for tid in {1..50} ; do
     echo "spawn $tid"
     run_one $tid &
+    sleep 0.2
 done
+
+# run curl without proxy
+run_all

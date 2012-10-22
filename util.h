@@ -59,8 +59,8 @@ extern void sbuf_insert(sbuf_t *sp, int item);
 extern int  sbuf_remove(sbuf_t *sp);
 
 extern void cache_init();
-extern char *cache_load(char *url);
-extern int cache_insert(char *url, char *obj);
+extern char *cache_load(char *url, int *obj_size);
+extern int cache_insert(char *url, char *obj, int obj_size);
 
 /* Error process function */
 extern void error_exit(char *s);
