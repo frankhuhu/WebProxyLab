@@ -37,8 +37,8 @@ typedef struct {
 #define MAXBUF   8192  /* max I/O buffer size */
 #define LISTENQ  1024  /* second argument to listen() */
 
-#define MAXOBJECTSIZE (1024 * 80)
-#define MAXOBJECTCOUNT 128
+#define MAXOBJECTSIZE (1024 * 256)
+#define MAXOBJECTCOUNT (40)
 
 /* Rio (Robust I/O) package */
 extern ssize_t rio_readn(int fd, void *usrbuf, size_t n);

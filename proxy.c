@@ -5,8 +5,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <fcntl.h>
 #include "util.h"
 
 
@@ -180,19 +182,15 @@ int work(int clientfd) {
 
     nread = resp_len = 0;
     cache_data = (char *) malloc(sizeof(char) * MAXOBJECTSIZE + 5);
-    memset(cache_data, 0, sizeof(char) * MAXOBJECTSIZE);
     while ((nread = recv(serverfd, response_buf, sizeof(char) * MAXOBJECTSIZE, 0)) > 0) {
-        resp_len += nread;
-        if (resp_len <= MAXOBJECTSIZE) {
-            response_buf[nread] = '\0';
-            strcat(cache_data, response_buf);
-            //memcpy(cache_data, response_buf, sizeof(char) * MAXOBJECTSIZE);
+        if (resp_len + nread <= MAXOBJECTSIZE) {
+            memcpy(cache_data + resp_len, response_buf, nread);
         }
+        resp_len += nread;
         if (send(clientfd, response_buf, nread, 0) < 0) {
             echo_error("Error in sending response to client.");
             goto work_failed;
         }
-        memset(response_buf, 0, sizeof(char) * MAXOBJECTSIZE);
     }
     if (resp_len <= MAXOBJECTSIZE)
         cache_insert(request->url, cache_data, resp_len);
@@ -230,10 +228,12 @@ void *thread_entry(void *vargp) {
 
 int main(int argc, char **argv)
 {
-    int i, port, listenfd, clientfd;
+    int i, port, listenfd, clientfd, maxfd = -1;
     socklen_t clientlen;
     struct sockaddr_in clientaddr;
     pthread_t tid;
+    fd_set sockset;
+    struct timeval timeout;
 
     if (argc != 2) {
         echo_error("usage: proxy <port>");
@@ -245,6 +245,7 @@ int main(int argc, char **argv)
     cache_init();
     clientlen = sizeof(clientaddr);
     listenfd = create_listenfd(port);
+    maxfd = listenfd > maxfd ? listenfd : maxfd;
 
     for (i = 0; i < NTHREADS; i++) {
         if (pthread_create(&tid, NULL, thread_entry, NULL) < 0) {
@@ -254,11 +255,23 @@ int main(int argc, char **argv)
     }
 
     while (1) {
-        if ((clientfd = accept(listenfd, (struct sockaddr *)&clientaddr, &clientlen)) < 0) {
-            echo_error("Error in accept.");
-            exit(-1);
+        FD_ZERO(&sockset);
+        FD_SET(listenfd, &sockset);
+        timeout.tv_sec = 60;
+        timeout.tv_usec = 0;
+
+        if (select(maxfd+1, &sockset, NULL, NULL, &timeout) == 0) {
+            printf("No requests from client for %ld secs ... Server still alive.\n", timeout.tv_sec);
+        } else {
+            if (FD_ISSET(listenfd, &sockset)) {
+                if ((clientfd = accept(listenfd, (struct sockaddr *)&clientaddr, &clientlen)) < 0) {
+                    echo_error("Error in accept.");
+                    exit(-1);
+                }
+                sbuf_insert(&sbuf, clientfd);
+            }
         }
-        sbuf_insert(&sbuf, clientfd);
+
     }
 
     sbuf_free(&sbuf);

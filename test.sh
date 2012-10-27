@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PROXY=127.0.0.1:62185
-
+#PROXY=ec2-54-242-84-63.compute-1.amazonaws.com:62185
 
 if [ ! -d "result" ]; then
     mkdir result
